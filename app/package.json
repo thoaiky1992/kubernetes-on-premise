@@ -1,0 +1,16 @@
+{
+  "name": "k8s-ha-tls-example",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@elastic/elasticsearch": "^9.0.0",
+    "ioredis": "^5.11.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,62 @@
+# Node pool duy nhất: 6 Pod, mỗi Pod vừa controller vừa broker (KRaft).
+# Quorum controller là 4/6, nên mất một AZ (2 Pod) vẫn giữ quorum, giống cách Elasticsearch chọn 6 node master-eligible.
+# Pod chỉ chạy trên sáu node Linux, mỗi node một Pod, 2 Pod mỗi AZ.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: combined
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: kafka-cluster
+spec:
+  replicas: 6
+  roles:
+    - controller
+    - broker
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 20Gi
+        class: local-kafka
+        # Giữ local PV khi xóa cluster hoặc node pool; dọn PVC bằng tay sau khi đã backup.
+        deleteClaim: false
+        # Metadata KRaft nằm trên cùng volume với log.
+        kraftMetadata: shared
+  resources:
+    requests:
+      cpu: "1"
+      memory: 5Gi
+    limits:
+      memory: 5Gi
+  jvmOptions:
+    # Heap bằng khoảng một nửa bộ nhớ container; phần còn lại cho page cache của Kafka.
+    "-Xms": 2048m
+    "-Xmx": 2048m
+  template:
+    pod:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  strimzi.io/cluster: kafka-cluster
+                  strimzi.io/pool-name: combined
+              topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              strimzi.io/cluster: kafka-cluster
+              strimzi.io/pool-name: combined

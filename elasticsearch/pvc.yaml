@@ -1,0 +1,35 @@
+# PVC kiểm tra tùy chọn. Không áp dụng file này khi cài Elasticsearch vì nó sẽ
+# chiếm một trong sáu PV dành cho ECK. PVC dữ liệu thật được ECK tạo từ
+# volumeClaimTemplates trong elasticsearch.yaml.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: elasticsearch-storage-check
+  namespace: elasticsearch
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-elasticsearch
+  resources:
+    requests:
+      storage: 1Gi
+---
+# Chỉ dùng khi kiểm tra storage; xóa Pod và PVC sau khi đã ghi lại PV.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: elasticsearch-storage-check
+  namespace: elasticsearch
+spec:
+  restartPolicy: Never
+  containers:
+    - name: check
+      image: busybox:1.36
+      command: ["sh", "-c", "echo ok > /volume/check && sleep 3600"]
+      volumeMounts:
+        - name: volume
+          mountPath: /volume
+  volumes:
+    - name: volume
+      persistentVolumeClaim:
+        claimName: elasticsearch-storage-check

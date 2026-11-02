@@ -1,0 +1,37 @@
+# KafkaTopic cho luồng sự kiện của dịch vụ đơn hàng.
+# Cụm đích là kafka-cluster (kafka.yaml, namespace kafka): 6 broker trên 3 AZ, Entity Operator đang chạy.
+# Replica nằm khác AZ nhờ broker.rack theo zone (rack awareness) khi topic được tạo.
+# Sau khi tạo, kiểm tra thực tế bằng kafka-topics.sh --describe (xem README.md).
+# Producer và consumer cần KafkaUser có ACL trên topic này; chưa có trong repo.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: order-service
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: kafka-cluster
+spec:
+  # Số partition quyết định số consumer đọc song song trong một consumer group.
+  # Có thể tăng sau này nhưng không giảm được. Nên chọn bội số của 6 (số broker) để leader phân bố đều.
+  partitions: 12
+
+  # Mỗi partition có 3 bản sao, mỗi bản sao ở một AZ khác nhau.
+  replicas: 3
+
+  config:
+    # Số bản sao tối thiểu phải đồng bộ để producer ghi thành công khi acks=all.
+    # Mất một AZ (2 broker) vẫn còn 2 bản sao đồng bộ nên việc ghi không bị gián đoạn.
+    min.insync.replicas: "2"
+
+    # Chỉ bầu leader từ các bản sao đang đồng bộ (ISR), tránh mất sự kiện khi leader không đồng bộ.
+    unclean.leader.election.enable: "false"
+
+    # Xóa segment cũ khi vượt retention. Sự kiện cũ hơn retention.ms không còn để phát lại.
+    cleanup.policy: delete
+
+    # Giữ sự kiện 14 ngày (1209600000 ms) để consumer phục hồi hoặc phát lại. Điều chỉnh theo yêu cầu nghiệp vụ.
+    retention.ms: "1209600000"
+
+    # Nên đặt retention.bytes theo lưu lượng × retention.ms để tránh đầy ổ đĩa local của broker.
+    # Mặc định không giới hạn theo dung lượng.
+    # retention.bytes: "<giới hạn mỗi partition, tính bằng byte>"

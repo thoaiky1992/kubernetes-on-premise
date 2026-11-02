@@ -1,0 +1,52 @@
+# User mTLS cho Kafka Connect. Strimzi tạo Secret kafka-connect (user.crt, user.key, ca.crt) và KafkaConnect dùng Secret này.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaUser
+metadata:
+  name: kafka-connect
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: kafka-cluster
+spec:
+  authentication:
+    type: tls
+  authorization:
+    type: simple
+    acls:
+      # Ba topic nội bộ của Connect (config, offset, status).
+      - resource:
+          type: topic
+          name: connect-configs
+          patternType: literal
+        operations: [Create, Describe, Read, Write]
+        host: "*"
+      - resource:
+          type: topic
+          name: connect-offsets
+          patternType: literal
+        operations: [Create, Describe, Read, Write]
+        host: "*"
+      - resource:
+          type: topic
+          name: connect-status
+          patternType: literal
+        operations: [Create, Describe, Read, Write]
+        host: "*"
+      # Topic dữ liệu CDC của connector Debezium có prefix pg. (xem topic.prefix trong kafka-connector-postgres.example.yaml).
+      - resource:
+          type: topic
+          name: pg.
+          patternType: prefix
+        operations: [Create, Describe, Read, Write]
+        host: "*"
+      # Group của worker Connect (groupId trong kafka-connect.yaml).
+      - resource:
+          type: group
+          name: connect-cluster
+          patternType: literal
+        operations: [Describe, Read]
+        host: "*"
+      # Cluster-level: Describe và IdempotentWrite để producer của Connect dùng idempotence.
+      - resource:
+          type: cluster
+        operations: [Describe, IdempotentWrite]
+        host: "*"

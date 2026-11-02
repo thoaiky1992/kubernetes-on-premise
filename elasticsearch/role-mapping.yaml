@@ -1,0 +1,11 @@
+# Secret chứa role assignment cho fileRealm users.
+# users_roles: plain-text format "role:user" — gán user elastic vào role superuser (toàn quyền).
+# Xem thêm: https://www.elastic.co/guide/en/cloud-on-k8s/current/k8s-users-and-roles.html
+apiVersion: v1
+kind: Secret
+metadata:
+  name: elastic-roles
+  namespace: elasticsearch
+stringData:
+  users_roles: |
+    superuser:elastic

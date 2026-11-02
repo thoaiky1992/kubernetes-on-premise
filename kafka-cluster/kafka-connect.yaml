@@ -1,0 +1,89 @@
+# Kafka Connect distributed mode, 3 worker trên sáu node on-premise (mỗi AZ một worker), chạy image kafka-connect-postgres (images/kafka-connect-postgres/).
+# Image phải được build và push trước khi apply; giữ tag này khớp với tag đã push.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaConnect
+metadata:
+  name: kafka-connect
+  namespace: kafka
+  annotations:
+    # Cho phép tạo connector bằng KafkaConnector CR thay vì gọi REST API.
+    strimzi.io/use-connector-resources: "true"
+spec:
+  version: 4.3.1
+  image: thoaiky1992/kafka-connect-postgres:3.5.2.Final-kafka-4.3.1
+  replicas: 3
+  bootstrapServers: kafka-cluster-kafka-bootstrap:9093
+  groupId: connect-cluster
+  configStorageTopic: connect-configs
+  offsetStorageTopic: connect-offsets
+  statusStorageTopic: connect-status
+  authentication:
+    type: tls
+    certificateAndKey:
+      secretName: kafka-connect
+      certificate: user.crt
+      key: user.key
+  tls:
+    # Tin cậy CA của Kafka cluster (Strimzi tạo Secret này).
+    trustedCertificates:
+      - secretName: kafka-cluster-cluster-ca-cert
+        pattern: "*.crt"
+  # client.rack = zone của Pod Connect, để consumer đọc từ replica cùng AZ khi có thể.
+  rack:
+    topologyKey: topology.kubernetes.io/zone
+  config:
+    config.storage.replication.factor: 3
+    offset.storage.replication.factor: 3
+    status.storage.replication.factor: 3
+    key.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable: false
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    value.converter.schemas.enable: false
+    # Đọc credential từ file mount trong Pod (Secret postgres-cdc-credentials), không đặt mật khẩu trong CR.
+    config.providers: file
+    config.providers.file.class: org.apache.kafka.common.config.provider.FileConfigProvider
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      memory: 2Gi
+  jvmOptions:
+    "-Xms": 1024m
+    "-Xmx": 1024m
+  template:
+    pod:
+      affinity:
+        # Kafka Connect chia sẻ sáu node với broker và các workload khác.
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    strimzi.io/cluster: kafka-connect
+                topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              strimzi.io/cluster: kafka-connect
+      volumes:
+        - name: postgres-cdc-credentials
+          secret:
+            secretName: postgres-cdc-credentials
+    connectContainer:
+      volumeMounts:
+        - name: postgres-cdc-credentials
+          mountPath: /opt/kafka/external-configuration/postgres-cdc-credentials
+          readOnly: true

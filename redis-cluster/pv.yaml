@@ -1,0 +1,187 @@
+apiVersion: v1
+kind: List
+items:
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata: {name: local-redis-data-cp1}
+    spec: &redis-data-pv-spec
+      capacity: {storage: 20Gi}
+      volumeMode: Filesystem
+      accessModes: [ReadWriteOnce]
+      persistentVolumeReclaimPolicy: Retain
+      storageClassName: local-redis-data
+      local: {path: /srv/k8s-local/redis-data}
+      nodeAffinity:
+        required:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - cp1
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata: {name: local-redis-data-cp2}
+    spec:
+      <<: *redis-data-pv-spec
+      nodeAffinity:
+        required:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - cp2
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata: {name: local-redis-data-cp3}
+    spec:
+      <<: *redis-data-pv-spec
+      nodeAffinity:
+        required:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - cp3
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata: {name: local-redis-data-wk1}
+    spec:
+      <<: *redis-data-pv-spec
+      nodeAffinity:
+        required:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - wk1
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata: {name: local-redis-data-wk2}
+    spec:
+      <<: *redis-data-pv-spec
+      nodeAffinity:
+        required:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - wk2
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata: {name: local-redis-data-wk3}
+    spec:
+      <<: *redis-data-pv-spec
+      nodeAffinity:
+        required:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - wk3
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata: {name: local-redis-conf-cp1}
+    spec: &redis-conf-pv-spec
+      capacity: {storage: 1Gi}
+      volumeMode: Filesystem
+      accessModes: [ReadWriteOnce]
+      persistentVolumeReclaimPolicy: Retain
+      storageClassName: local-redis-conf
+      local: {path: /srv/k8s-local/redis-conf}
+      nodeAffinity:
+        required:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - cp1
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata: {name: local-redis-conf-cp2}
+    spec:
+      <<: *redis-conf-pv-spec
+      nodeAffinity:
+        required:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - cp2
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata: {name: local-redis-conf-cp3}
+    spec:
+      <<: *redis-conf-pv-spec
+      nodeAffinity:
+        required:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - cp3
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata: {name: local-redis-conf-wk1}
+    spec:
+      <<: *redis-conf-pv-spec
+      nodeAffinity:
+        required:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - wk1
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata: {name: local-redis-conf-wk2}
+    spec:
+      <<: *redis-conf-pv-spec
+      nodeAffinity:
+        required:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - wk2
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata: {name: local-redis-conf-wk3}
+    spec:
+      <<: *redis-conf-pv-spec
+      nodeAffinity:
+        required:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - wk3
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata: {name: local-redis-backup-cp1}
+    spec:
+      capacity: {storage: 20Gi}
+      volumeMode: Filesystem
+      accessModes: [ReadWriteOnce]
+      persistentVolumeReclaimPolicy: Retain
+      storageClassName: local-redis-backup
+      local: {path: /srv/k8s-local/redis-backup}
+      nodeAffinity:
+        required:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - cp1

@@ -1,0 +1,33 @@
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: node-api-hpa
+  namespace: app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: node-api
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 60 # Thời gian chờ (giây) trước khi bắt đầu scale down (mặc định 300s / 5 phút)
+      policies:
+      - type: Percent
+        value: 100 # Giảm 100% số lượng pod hiện tại (tối đa 1 pod)
+        periodSeconds: 15 # Thời gian chờ (giây) giữa các lần scale down (mặc định 15s)

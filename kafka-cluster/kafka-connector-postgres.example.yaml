@@ -1,0 +1,31 @@
+# Mẫu KafkaConnector Debezium PostgreSQL. Sao chép thành file local, sửa host/database/table, rồi apply.
+# Yêu cầu: PostgreSQL bật wal_level=logical và user có quyền REPLICATION; xem README.md.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaConnector
+metadata:
+  name: postgres-cdc
+  namespace: kafka
+  labels:
+    # Connector này chạy trên cụm KafkaConnect kafka-connect.
+    strimzi.io/cluster: kafka-connect
+spec:
+  class: io.debezium.connector.postgresql.PostgresConnector
+  # Một task cho một replication slot; tăng số task không làm Debezium đọc WAL song song.
+  tasksMax: 1
+  config:
+    database.hostname: <postgres-host>
+    database.port: "5432"
+    database.dbname: <database>
+    # Đọc user/password từ file properties được mount trong Pod.
+    database.user: ${file:/opt/kafka/external-configuration/postgres-cdc-credentials/postgres.properties:database.user}
+    database.password: ${file:/opt/kafka/external-configuration/postgres-cdc-credentials/postgres.properties:database.password}
+    # verify-full: xác thực chứng chỉ server PostgreSQL. Không đặt sslrootcert nên dùng truststore mặc định của JVM trong image; không hạ xuống require/disable.
+    database.sslmode: verify-full
+    topic.prefix: pg
+    plugin.name: pgoutput
+    slot.name: debezium_cdc
+    publication.name: debezium_cdc_pub
+    publication.autocreate.mode: filtered
+    table.include.list: public.orders
+    snapshot.mode: initial
+    heartbeat.interval.ms: "10000"

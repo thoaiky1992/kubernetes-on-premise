@@ -1,0 +1,22 @@
+# OT Redis Operator 0.27.0 cho Redis Cluster. Chỉ theo dõi namespace redis-cluster.
+redisOperator:
+  name: redis-cluster-operator
+  watchNamespace: redis-cluster
+  podLabels:
+    ha-operator: redis-cluster
+
+replicas: 2
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            ha-operator: redis-cluster
+        topologyKey: kubernetes.io/hostname
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 500Mi

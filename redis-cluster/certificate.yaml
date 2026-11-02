@@ -1,0 +1,79 @@
+# Chạy sau khi đã cài cert-manager bằng Helm (xem README.md). CA chỉ dùng trong namespace redis-cluster;
+# lưu và quản lý việc xoay vòng CA riêng.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: redis-cluster-selfsigned
+  namespace: redis-cluster
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: redis-cluster-ca
+  namespace: redis-cluster
+spec:
+  isCA: true
+  commonName: redis-cluster-ca
+  secretName: redis-cluster-ca
+  duration: 87600h # 10 năm; cần kế hoạch xoay vòng CA trước khi hết hạn.
+  privateKey:
+    algorithm: RSA
+    size: 2048
+    rotationPolicy: Never
+  usages:
+    - cert sign
+    - crl sign
+  issuerRef:
+    name: redis-cluster-selfsigned
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: redis-cluster-ca
+  namespace: redis-cluster
+spec:
+  ca:
+    secretName: redis-cluster-ca
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: redis-cluster-tls
+  namespace: redis-cluster
+spec:
+  secretName: redis-cluster-tls
+  duration: 2160h # 90 ngày.
+  renewBefore: 360h # Gia hạn 15 ngày trước khi hết hạn.
+  privateKey:
+    algorithm: RSA
+    size: 2048
+    rotationPolicy: Always
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+    # Cluster bus (gossip giữa các node) là TLS hai chiều: mỗi node vừa là server vừa là
+    # client và trình chứng chỉ của mình. Thiếu client auth thì node từ chối kết nối bus.
+    - client auth
+  # Mỗi node Redis Cluster được client và các node khác gọi theo hostname
+  # (cluster-preferred-endpoint-type hostname), nên SAN phải bao phủ cả Pod headless
+  # lẫn Service của leader và follower.
+  dnsNames:
+    - redis-cluster-leader
+    - redis-cluster-leader.redis-cluster
+    - redis-cluster-leader.redis-cluster.svc
+    - redis-cluster-leader.redis-cluster.svc.cluster.local
+    - redis-cluster-follower
+    - redis-cluster-follower.redis-cluster
+    - redis-cluster-follower.redis-cluster.svc
+    - redis-cluster-follower.redis-cluster.svc.cluster.local
+    - "*.redis-cluster-leader-headless.redis-cluster.svc"
+    - "*.redis-cluster-leader-headless.redis-cluster.svc.cluster.local"
+    - "*.redis-cluster-follower-headless.redis-cluster.svc"
+    - "*.redis-cluster-follower-headless.redis-cluster.svc.cluster.local"
+  issuerRef:
+    name: redis-cluster-ca
+    kind: Issuer

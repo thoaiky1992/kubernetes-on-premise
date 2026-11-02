@@ -1,0 +1,102 @@
+# RedisCluster: 3 leader (master) và 3 follower (replica), mỗi leader có đúng 1 follower.
+# Trong manifest dùng leader/follower theo tên trường của OT Redis Operator; Redis gọi là master/replica.
+# clusterSize chỉ là giá trị dự phòng; replicas bên dưới đặt số Pod tường minh.
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisCluster
+metadata:
+  name: redis-cluster
+  namespace: redis-cluster
+spec:
+  clusterSize: 3
+  clusterVersion: v7 # v7 bật khai báo hostname (cần cho SAN của cert) và lệnh ADDSLOTSRANGE.
+  persistenceEnabled: true
+  TLS:
+    ca: ca.crt
+    cert: tls.crt
+    key: tls.key
+    secret:
+      secretName: redis-cluster-tls
+      optional: false
+      defaultMode: 288 # 0440; fsGroup 1000 đọc được khóa riêng.
+  # Ảnh dựa trên quay.io/opstree/redis:v7.0.15 vẫn đọc tên biến cũ này.
+  # POD_NAMESPACE để entrypoint của ảnh announce FQDN (xem redis-cluster/images/redis-cluster/).
+  env:
+    - name: REDIS_TLS_CA_KEY
+      value: /tls/ca.crt
+    - name: POD_NAMESPACE
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
+  kubernetesConfig:
+    # Build và push trước khi apply: redis-cluster/images/redis-cluster/Dockerfile.
+    image: thoaiky1992/redis-cluster:7.0.15-fqdn.1
+    imagePullPolicy: IfNotPresent
+    service:
+      serviceType: ClusterIP
+    redisSecret:
+      name: redis-cluster-auth
+      key: redis-password
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
+      limits:
+        memory: 2Gi
+  redisExporter:
+    enabled: false
+    image: quay.io/opstree/redis-exporter:v1.44.0
+  redisLeader:
+    replicas: 3
+    # additionalRedisConfig phải nằm ở từng role: đặt ở cấp spec, operator 0.27 không mount ConfigMap.
+    redisConfig:
+      additionalRedisConfig: redis-cluster-config
+    pdb:
+      enabled: true
+      maxUnavailable: 1
+    # Mỗi leader nằm ở một AZ khác nhau. Yêu cầu label role=leader trên Pod; kiểm tra bằng
+    # `kubectl -n redis-cluster get pods --show-labels` sau khi cài.
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                role: leader
+            topologyKey: topology.kubernetes.io/zone
+  redisFollower:
+    replicas: 3
+    redisConfig:
+      additionalRedisConfig: redis-cluster-config
+    pdb:
+      enabled: true
+      maxUnavailable: 1
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                role: follower
+            topologyKey: topology.kubernetes.io/zone
+  storage:
+    # Giữ PVC khi CR bị xóa, để dữ liệu local không mất theo CR.
+    keepAfterDelete: true
+    # nodes.conf (membership cluster) phải nằm trên PVC; nếu không, Pod restart là node mất cluster.
+    nodeConfVolume: true
+    nodeConfVolumeClaimTemplate:
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: local-redis-conf
+        resources:
+          requests:
+            storage: 1Gi
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: local-redis-data
+        resources:
+          requests:
+            storage: 20Gi
+  podSecurityContext:
+    runAsUser: 1000
+    fsGroup: 1000

@@ -1,0 +1,15 @@
+# Service nội bộ cho node-api. Dùng cho kubectl port-forward khi test từ máy cục bộ (xem README.md).
+apiVersion: v1
+kind: Service
+metadata:
+  name: node-api
+  namespace: app
+spec:
+  type: ClusterIP
+  selector:
+    app: node-api
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      protocol: TCP

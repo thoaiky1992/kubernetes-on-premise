@@ -1,0 +1,11 @@
+# Kafka cluster, KafkaConnect và KafkaTopic/KafkaUser nằm trong namespace kafka.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kafka
+---
+# Strimzi cluster operator chạy riêng trong kafka-system và chỉ theo dõi namespace kafka.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kafka-system

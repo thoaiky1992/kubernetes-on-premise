@@ -1,0 +1,17 @@
+# RedisCluster.spec.redisConfig.additionalRedisConfig trỏ tới ConfigMap này.
+# tls-cluster bật TLS cho cluster bus (gossip giữa các node), không chỉ cho client.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-cluster-config
+  namespace: redis-cluster
+data:
+  redis-additional.conf: |
+    appendonly yes
+    save ""
+    maxmemory 1gb
+    maxmemory-policy noeviction
+    tls-auth-clients no
+    tls-replication yes
+    tls-cluster yes
+    cluster-preferred-endpoint-type hostname

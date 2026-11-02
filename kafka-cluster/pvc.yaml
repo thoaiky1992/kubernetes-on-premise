@@ -1,0 +1,13 @@
+# PVC kiểm tra tùy chọn. Không áp dụng khi cài Kafka vì Strimzi sẽ tự tạo sáu
+# PVC thật từ kafka-nodepool.yaml và cần toàn bộ sáu PV local-kafka.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kafka-storage-check
+  namespace: kafka
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-kafka
+  resources:
+    requests:
+      storage: 1Gi

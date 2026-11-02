@@ -1,0 +1,13 @@
+# Redis Operator tự tạo 12 PVC data/nodes.conf từ redis-cluster.yaml.
+# File này chỉ khai báo PVC thật cho CronJob backup.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-cluster-backup
+  namespace: redis-cluster
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-redis-backup
+  resources:
+    requests:
+      storage: 20Gi

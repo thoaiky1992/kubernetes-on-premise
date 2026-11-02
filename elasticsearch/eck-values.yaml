@@ -1,0 +1,24 @@
+# Ba replica operator trên ba node khác nhau.
+replicaCount: 3 # Số lượng replica của Elasticsearch
+podLabels:
+  ha-operator: eck
+affinity:
+  # Bắt buộc các Pod phải nằm trên các Node/Hostname khác nhau (Tránh chạy chung 1 node)
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            ha-operator: eck
+        topologyKey: kubernetes.io/hostname
+    # Ưu tiên cao phân bổ các Pod sang các Zone khác nhau để chịu lỗi phần cứng diện rộng
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              ha-operator: eck
+          topologyKey: topology.kubernetes.io/zone
+podDisruptionBudget:
+  enabled: true
+  # Với 3 replicas, để minAvailable: 2 giúp cụm luôn an toàn khi có sự cố node hoặc drain node bảo trì
+  minAvailable: 2 # Số lượng Pod tối thiểu phải có sẵn trong cụm Elasticsearch

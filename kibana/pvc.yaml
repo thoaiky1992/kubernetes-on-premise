@@ -1,0 +1,12 @@
+# PVC tùy chọn, không áp dụng trong quy trình cài Kibana thông thường.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kibana-storage-check
+  namespace: kibana
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-kibana
+  resources:
+    requests:
+      storage: 1Gi

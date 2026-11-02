@@ -1,0 +1,12 @@
+# PVC tùy chọn, không áp dụng trong quy trình cài Node API thông thường.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-storage-check
+  namespace: app
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-app
+  resources:
+    requests:
+      storage: 1Gi

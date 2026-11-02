@@ -1,0 +1,64 @@
+# ECK quản lý StatefulSet, Service, chứng chỉ TLS và PVC của sáu node (2 node mỗi AZ).
+# Chỉ triển khai sau khi kiểm tra điều kiện trong ELASTICSEARCH.md.
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: search
+  namespace: elasticsearch
+spec:
+  version: 9.5.5
+  # ECK cấp và tự xoay vòng chứng chỉ HTTPS cho Service search-es-http.
+  # TLS transport giữa các node cũng do ECK quản lý.
+  http:
+    tls:
+      selfSignedCertificate:
+        disabled: false
+  # Giữ PVC khi xóa CR; giảm số node vẫn xóa PVC của node bị giảm.
+  volumeClaimDeletePolicy: DeleteOnScaledownOnly
+  auth:
+    fileRealm:
+      - secretName: elastic-auth
+      - secretName: elastic-roles
+  nodeSets:
+    - name: default
+      # Sáu node, mỗi node đều là master-eligible: quorum là 4, nên mất một AZ (2 node) vẫn giữ quorum.
+      count: 6
+      # ECK 3.4+ phân bố Pod theo AZ và cấu hình shard allocation awareness.
+      zoneAwareness:
+        topologyKey: topology.kubernetes.io/zone
+      podTemplate:
+        spec:
+          # Elasticsearch 8.16+ cần vm.max_map_count=1048576 khi dùng mmap.
+          # Init container cần quyền privileged; thay bằng cấu hình trên node nếu
+          # cluster áp dụng Pod Security policy không cho phép privileged.
+          initContainers:
+            - name: sysctl
+              securityContext:
+                privileged: true
+                runAsUser: 0
+              command: ["sh", "-c", "sysctl -w vm.max_map_count=1048576"]
+          affinity:
+            podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      elasticsearch.k8s.elastic.co/cluster-name: search
+                  topologyKey: kubernetes.io/hostname
+          containers:
+            - name: elasticsearch
+              resources:
+                requests:
+                  cpu: "1"
+                  memory: 4Gi
+                limits:
+                  memory: 4Gi
+      volumeClaimTemplates:
+        - metadata:
+            name: elasticsearch-data
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            storageClassName: local-elasticsearch
+            resources:
+              requests:
+                storage: 20Gi

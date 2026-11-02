@@ -1,0 +1,103 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dev-demo-redis-cluster-backup
+  namespace: redis-cluster
+data:
+  backup.sh: |
+    #!/usr/bin/env bash
+    # Backup Redis Cluster: một RDB cho mỗi master, lấy từ chính topology hiện tại
+    # (CLUSTER NODES), nên không phụ thuộc master nào đang là ordinal 0.
+    set -Eeuo pipefail
+
+    : "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"
+    : "${REDIS_CLUSTER_SEED_HOST:?REDIS_CLUSTER_SEED_HOST is required}"
+    : "${EXPECTED_SHARDS:?EXPECTED_SHARDS is required}"
+    REDIS_PORT="${REDIS_PORT:-6379}"
+
+    timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+    work_dir="/backup/${timestamp}"
+    destination="/archive/redis-cluster/${timestamp}"
+    mkdir -p "$work_dir"
+    export REDISCLI_AUTH="$REDIS_PASSWORD"
+
+    # Luôn dùng TLS, xác minh CA và đặt SNI bằng hostname để khớp SAN của cert.
+    cli() {
+      local host="$1"
+      shift
+      redis-cli --tls --cacert /tls/ca.crt --sni "$host" -h "$host" -p "$REDIS_PORT" "$@"
+    }
+
+    cluster_info="$(cli "$REDIS_CLUSTER_SEED_HOST" --raw CLUSTER INFO | tr -d '\r')"
+    if ! grep -q '^cluster_state:ok' <<<"$cluster_info"; then
+      echo "Cluster chưa ở trạng thái ok; hủy backup để không ghi bản thiếu shard." >&2
+      exit 1
+    fi
+
+    cli "$REDIS_CLUSTER_SEED_HOST" --raw CLUSTER NODES | tr -d '\r' > "$work_dir/cluster-nodes.txt"
+
+    # Mỗi dòng CLUSTER NODES: <id> <ip:port@cport[,hostname]> <flags> <master-id> <ping> <pong> <epoch> <link> [slot...]
+    # Chỉ lấy master đang sống và có slot. Dải slot dạng [x->-y] là trạng thái migrate, bỏ qua.
+    masters=()
+    while read -r node_id address flags _master_id _ping _pong _epoch _link slots; do
+      [[ "$flags" == *master* && "$flags" != *fail* ]] || continue
+      if [[ "$address" != *,* ]]; then
+        echo "Node $node_id không có hostname trong CLUSTER NODES; TLS không thể khớp SAN." >&2
+        exit 1
+      fi
+      hostname="${address#*,}"
+      slot_ranges=""
+      for range in $slots; do
+        if [[ "$range" =~ ^[0-9]+(-[0-9]+)?$ ]]; then
+          slot_ranges+="${slot_ranges:+ }$range"
+        fi
+      done
+      if [[ -z "$slot_ranges" ]]; then
+        echo "Master $node_id không giữ slot nào; hủy backup." >&2
+        exit 1
+      fi
+      first_slot="${slot_ranges%% *}"
+      first_slot="${first_slot%%-*}"
+      masters+=("${first_slot}"$'\t'"${node_id}"$'\t'"${hostname}"$'\t'"${slot_ranges}")
+    done < "$work_dir/cluster-nodes.txt"
+
+    if (( ${#masters[@]} != EXPECTED_SHARDS )); then
+      echo "Tìm thấy ${#masters[@]} master, kỳ vọng $EXPECTED_SHARDS; hủy backup." >&2
+      exit 1
+    fi
+
+    shards_json=""
+    index=0
+    while IFS=$'\t' read -r _first node_id hostname slot_ranges; do
+      index=$((index + 1))
+      shard="$(printf 'shard-%02d' "$index")"
+      mkdir -p "$work_dir/$shard"
+      cli "$hostname" --rdb "$work_dir/$shard/dump.rdb" >/dev/null
+
+      if ! check_out="$(redis-check-rdb "$work_dir/$shard/dump.rdb" 2>&1)" \
+        || ! grep -q 'RDB looks OK' <<<"$check_out"; then
+        echo "$shard: RDB không vượt qua redis-check-rdb." >&2
+        exit 1
+      fi
+      keys="$(awk '/keys read/{print $2; exit}' <<<"$check_out")"
+      if [[ ! "$keys" =~ ^[0-9]+$ ]]; then
+        echo "$shard: không đọc được số key từ redis-check-rdb." >&2
+        exit 1
+      fi
+      echo "$shard: master=$hostname slots=$slot_ranges keys=$keys"
+      shards_json+="${shards_json:+,}{\"name\":\"${shard}\",\"node_id\":\"${node_id}\",\"host\":\"${hostname}\",\"slots\":\"${slot_ranges}\",\"keys\":${keys}}"
+    done < <(printf '%s\n' "${masters[@]}" | sort -t$'\t' -k1,1n)
+
+    printf '{"created_at":"%s","expected_shards":%s,"shards":[%s]}\n' \
+      "$timestamp" "$EXPECTED_SHARDS" "$shards_json" > "$work_dir/metadata.json"
+
+    (
+      cd "$work_dir"
+      sha256sum cluster-nodes.txt metadata.json shard-*/dump.rdb > SHA256SUMS
+    )
+
+    # Copy files first; _SUCCESS is written last so incomplete backups are skipped.
+    mkdir -p "$destination"
+    cp -a "$work_dir/." "$destination/"
+    printf '%s\n' "$timestamp" > "$destination/_SUCCESS"
+    echo "Backup saved: $destination/"

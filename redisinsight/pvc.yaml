@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redisinsight-data
+  namespace: redisinsight
+  labels:
+    app: redisinsight
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-redisinsight
+  resources:
+    requests:
+      storage: 5Gi

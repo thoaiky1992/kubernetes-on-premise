@@ -1,0 +1,11 @@
+# Elasticsearch, Secret và PVC thử nghiệm nằm trong namespace riêng.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: elasticsearch
+---
+# ECK operator chạy riêng trong elastic-system và quản lý resource ở elasticsearch.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: elastic-system

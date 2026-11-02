@@ -1,0 +1,21 @@
+# Node API hiện stateless. PV này chỉ dành cho kiểm tra storage hoặc nhu cầu mở
+# rộng riêng, không được mount bởi Deployment hiện tại.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: local-app-cp1
+spec:
+  capacity: {storage: 1Gi}
+  volumeMode: Filesystem
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-app
+  local: {path: /srv/k8s-local/app}
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - cp1

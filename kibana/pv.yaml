@@ -1,0 +1,21 @@
+# Kibana lưu saved objects trong Elasticsearch. PV này chỉ dành cho kiểm tra
+# storage hoặc nhu cầu mở rộng riêng, không được mount bởi Kibana CR hiện tại.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: local-kibana-cp1
+spec:
+  capacity: {storage: 1Gi}
+  volumeMode: Filesystem
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-kibana
+  local: {path: /srv/k8s-local/kibana}
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - cp1

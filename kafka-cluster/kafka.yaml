@@ -1,0 +1,39 @@
+# Cụm Kafka KRaft: 6 node (mỗi node vừa controller vừa broker), rải đều trên 3 AZ.
+# Node pool và placement nằm trong kafka-nodepool.yaml. Chỉ apply sau khi operator đã cài (README.md).
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: kafka-cluster
+  namespace: kafka
+spec:
+  kafka:
+    version: 4.3.1
+    metadataVersion: 4.3-IV0
+    # Strimzi gắn broker.rack = zone của node; Kafka đặt replica của mỗi partition ở các AZ khác nhau.
+    rack:
+      topologyKey: topology.kubernetes.io/zone
+    listeners:
+      # Chỉ một listener TLS nội bộ, client xác thực bằng chứng chỉ mTLS do KafkaUser cấp.
+      # Không mở listener plaintext và không mở listener external trong manifest này.
+      - name: tls
+        port: 9093
+        type: internal
+        tls: true
+        authentication:
+          type: tls
+    authorization:
+      type: simple
+    config:
+      # Mỗi partition có 3 replica (một replica mỗi AZ); producer dùng acks=all để ghi cần 2 replica đồng bộ.
+      default.replication.factor: 3
+      min.insync.replicas: 2
+      offsets.topic.replication.factor: 3
+      transaction.state.log.replication.factor: 3
+      transaction.state.log.min.isr: 2
+      # Không chọn leader từ replica không đồng bộ: ưu tiên không mất dữ liệu hơn sẵn sàng.
+      unclean.leader.election.enable: false
+      # Topic chỉ được tạo qua KafkaTopic hoặc Connect có quyền ghi, tránh topic tạo nhầm.
+      auto.create.topics.enable: false
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}
